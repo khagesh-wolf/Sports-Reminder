@@ -1,18 +1,17 @@
 # Deployment Guide
 
-This guide covers deploying the Sports Reminder platform using **Cloudflare Pages** for the frontend and a Node.js hosting service for the backend.
+Deploy the Sports Reminder platform using **Cloudflare Pages** (frontend) and **Render** (backend).
 
 ---
 
-## Architecture Overview
+## Architecture
 
 ```
 ┌─────────────────────┐     ┌─────────────────────┐     ┌──────────────┐
-│  Cloudflare Pages   │     │  Backend Server      │     │   Supabase   │
-│  (React Frontend)   │────▶│  (Express.js)        │────▶│  PostgreSQL  │
-│  Static Site        │     │  Railway / Render /   │     │              │
-└─────────────────────┘     │  Fly.io / VPS        │     └──────────────┘
-                            └──────────┬───────────┘
+│  Cloudflare Pages   │     │   Render.com         │     │   Supabase   │
+│  (React Frontend)   │────▶│   (Express.js)       │────▶│  PostgreSQL  │
+│  Static Site / CDN  │     │   Web Service        │     │              │
+└─────────────────────┘     └──────────┬───────────┘     └──────────────┘
                                        │
                                        ▼
                             ┌──────────────────────┐
@@ -20,227 +19,276 @@ This guide covers deploying the Sports Reminder platform using **Cloudflare Page
                             └──────────────────────┘
 ```
 
-- **Frontend** → Cloudflare Pages (free tier, global CDN)
-- **Backend** → Any Node.js host (Railway, Render, Fly.io, or a VPS)
-- **Database** → Supabase (managed PostgreSQL)
-- **Notifications** → Telegram Bot API
-
 ---
 
-## Step 1: Set Up Supabase
+## Step 1: Set Up Supabase (Database)
 
-1. Go to [supabase.com](https://supabase.com) and create a new project.
+1. Go to [supabase.com](https://supabase.com) → **New Project**.
 
-2. Open the **SQL Editor** in your Supabase dashboard.
+2. Fill in:
+   - **Project name**: `sports-reminder`
+   - **Database password**: Choose a strong password
+   - **Region**: Pick the closest to you
 
-3. Copy the contents of `supabase/schema.sql` and run it. This creates all tables, indexes, triggers, and RLS policies.
+3. Wait for the project to be created (~2 minutes).
 
-4. Go to **Settings → API** and note down:
-   - **Project URL** → `https://xxxx.supabase.co`
-   - **anon (public) key** → used by the frontend
-   - **service_role key** → used by the backend (keep this secret!)
+4. Open the **SQL Editor** (left sidebar → SQL Editor).
+
+5. Click **New query**, paste the entire contents of `supabase/schema.sql`, and click **Run**.
+
+6. Go to **Settings → API** (left sidebar → Project Settings → API) and copy:
+
+   | What | Where to find | Used by |
+   |------|---------------|---------|
+   | **Project URL** | Under "Project URL" | Frontend + Backend |
+   | **anon public key** | Under "Project API keys" → `anon` `public` | Frontend only |
+   | **service_role key** | Under "Project API keys" → `service_role` `secret` | Backend only |
+
+   > **Warning**: The `service_role` key has full database access. Never expose it in frontend code.
 
 ---
 
 ## Step 2: Set Up Telegram Bot
 
-1. Open Telegram and message [@BotFather](https://t.me/BotFather).
+1. Open Telegram → search for **@BotFather** → start a chat.
 
-2. Send `/newbot` and follow the prompts to create a bot.
+2. Send: `/newbot`
 
-3. Copy the **Bot Token** (looks like `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`).
+3. Follow the prompts:
+   - Bot name: `Sports Reminder Bot` (or anything you like)
+   - Bot username: `sports_reminder_xyz_bot` (must end with `bot`)
 
-4. To get your **Chat ID**:
-   - Message [@userinfobot](https://t.me/userinfobot) on Telegram.
-   - It will reply with your numeric chat ID.
-   - Alternatively, send a message to your bot, then visit:
+4. BotFather will reply with your **Bot Token**. Copy it.
+   ```
+   Example: 7123456789:AAF1kD3mN-abc123XYZ456def789ghi
+   ```
+
+5. Get your **Chat ID**:
+   - Open Telegram → search for **@userinfobot** → start a chat
+   - It replies with your ID:
      ```
-     https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
+     Id: 123456789
      ```
-     Look for `"chat":{"id": YOUR_CHAT_ID}` in the response.
+   - Copy this number
+
+6. **Start your bot**: Open Telegram → search for your bot's username → send `/start`. This is required before the bot can send you messages.
 
 ---
 
-## Step 3: Deploy Backend Server
+## Step 3: Deploy Backend on Render
 
-The backend is an Express.js server that runs cron jobs, sends Telegram notifications, and provides API endpoints. It needs a **persistent Node.js host** (not Cloudflare Pages, which only serves static files).
+### 3a. Create Render Account
 
-### Option A: Railway (Recommended)
+1. Go to [render.com](https://render.com) → **Get Started for Free**.
+2. Sign up with your **GitHub** account (recommended — makes repo connection automatic).
 
-1. Go to [railway.app](https://railway.app) and sign in with GitHub.
+### 3b. Create Web Service
 
-2. Click **New Project → Deploy from GitHub repo** and select `Sports-Reminder`.
+1. From the Render dashboard, click **New +** → **Web Service**.
 
-3. In the service settings:
-   - **Root Directory**: `server`
-   - **Build Command**: `npm install && npm run build`
-   - **Start Command**: `npm start`
+2. Connect your GitHub repo:
+   - If you signed up with GitHub, your repos will appear automatically
+   - Search for `Sports-Reminder` and click **Connect**
 
-4. Add environment variables in the Railway dashboard (**Variables** tab):
+3. Configure the service:
 
-   | Variable | Value |
-   |----------|-------|
-   | `SUPABASE_URL` | `https://xxxx.supabase.co` |
-   | `SUPABASE_SERVICE_KEY` | Your Supabase **service_role** key |
-   | `TELEGRAM_BOT_TOKEN` | Your Telegram bot token |
-   | `TELEGRAM_CHAT_ID` | Your Telegram chat ID |
-   | `FOOTBALL_API_KEY` | API key from [api-football.com](https://www.api-football.com/) or leave empty for TheSportsDB free tier |
-   | `CRICKET_API_KEY` | API key from [cricapi.com](https://cricapi.com/) |
-   | `PORT` | `3001` (Railway assigns its own port, but this is the fallback) |
+   | Setting | Value |
+   |---------|-------|
+   | **Name** | `sports-reminder-server` |
+   | **Region** | Pick closest to you (e.g., `Oregon (US West)`) |
+   | **Branch** | `main` |
+   | **Root Directory** | `server` |
+   | **Runtime** | `Node` |
+   | **Build Command** | `npm install && npm run build` |
+   | **Start Command** | `npm start` |
+   | **Instance Type** | `Free` |
 
-5. Deploy. Railway will give you a public URL like `https://sports-reminder-server.up.railway.app`.
+### 3c. Add Environment Variables
 
-### Option B: Render
+Scroll down to **Environment Variables** section and click **Add Environment Variable** for each:
 
-1. Go to [render.com](https://render.com) → **New → Web Service**.
+| Key | Value | Notes |
+|-----|-------|-------|
+| `SUPABASE_URL` | `https://xxxx.supabase.co` | From Supabase → Settings → API → Project URL |
+| `SUPABASE_SERVICE_KEY` | `eyJhbGciOi...` | From Supabase → Settings → API → `service_role` key |
+| `TELEGRAM_BOT_TOKEN` | `7123456789:AAF1...` | From BotFather in Step 2 |
+| `TELEGRAM_CHAT_ID` | `123456789` | From @userinfobot in Step 2 |
+| `FOOTBALL_API_KEY` | *(leave empty or add key)* | Optional — TheSportsDB free tier works without a key |
+| `CRICKET_API_KEY` | *(leave empty or add key)* | Optional — get free key at [cricapi.com](https://cricapi.com) |
+| `NODE_VERSION` | `18` | Ensures Render uses Node 18 |
 
-2. Connect your GitHub repo.
+### 3d. Deploy
 
-3. Configure:
-   - **Root Directory**: `server`
-   - **Build Command**: `npm install && npm run build`
-   - **Start Command**: `npm start`
-   - **Instance Type**: Free
-
-4. Add the same environment variables as listed above.
-
-5. Deploy. You'll get a URL like `https://sports-reminder-server.onrender.com`.
-
-### Option C: Fly.io
-
-1. Install the Fly CLI:
-   ```bash
-   curl -L https://fly.io/install.sh | sh
+1. Click **Create Web Service**.
+2. Render will clone your repo, install dependencies, build, and start the server.
+3. Wait for the deploy to complete (2-5 minutes).
+4. You'll see a green **"Live"** badge when it's ready.
+5. Your backend URL will look like:
+   ```
+   https://sports-reminder-server.onrender.com
    ```
 
-2. From the `server/` directory:
-   ```bash
-   cd server
-   fly launch
-   fly secrets set SUPABASE_URL="https://xxxx.supabase.co"
-   fly secrets set SUPABASE_SERVICE_KEY="your-service-role-key"
-   fly secrets set TELEGRAM_BOT_TOKEN="your-bot-token"
-   fly secrets set TELEGRAM_CHAT_ID="your-chat-id"
-   fly secrets set FOOTBALL_API_KEY="your-key"
-   fly secrets set CRICKET_API_KEY="your-key"
-   fly deploy
-   ```
+### 3e. Verify Backend
 
-3. You'll get a URL like `https://sports-reminder-server.fly.dev`.
+Visit your backend URL + `/api/health`:
+```
+https://sports-reminder-server.onrender.com/api/health
+```
 
-> **Note your backend URL** — you'll need it in the next step.
+You should see:
+```json
+{"status":"ok","timestamp":"2025-01-15T10:30:00.000Z"}
+```
+
+### 3f. Keep Server Alive (Important for Free Tier)
+
+Render's free tier spins down the server after 15 minutes of inactivity. This breaks cron jobs (match fetching, reminders, health checks).
+
+**Solution — Use a free cron pinger:**
+
+1. Go to [cron-job.org](https://cron-job.org) → create a free account.
+
+2. Create a new cron job:
+
+   | Setting | Value |
+   |---------|-------|
+   | **Title** | `Keep Sports Reminder alive` |
+   | **URL** | `https://sports-reminder-server.onrender.com/api/health` |
+   | **Schedule** | Every 5 minutes |
+   | **Request Method** | `GET` |
+
+3. Save. This pings your health endpoint every 5 minutes, preventing Render from spinning down.
+
+**Alternative pingers** (if cron-job.org doesn't work for you):
+- [UptimeRobot](https://uptimerobot.com) — free, 5-minute checks
+- [Freshping](https://freshping.io) — free, 1-minute checks
+
+> **Note**: If you upgrade to Render's paid tier ($7/month), the server stays always-on and you don't need a pinger.
 
 ---
 
-## Step 4: Deploy Frontend to Cloudflare Pages
+## Step 4: Deploy Frontend on Cloudflare Pages
 
-### 4a. Connect Repository
+### 4a. Create Cloudflare Account
 
-1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**.
+1. Go to [dash.cloudflare.com](https://dash.cloudflare.com) → sign up (free).
 
-2. Select your GitHub account and the `Sports-Reminder` repository.
+### 4b. Connect Repository
+
+1. In the Cloudflare dashboard → **Workers & Pages** (left sidebar) → **Create** → **Pages** → **Connect to Git**.
+
+2. Sign in with GitHub and select the `Sports-Reminder` repository.
 
 3. Configure the build:
 
    | Setting | Value |
    |---------|-------|
+   | **Project name** | `sports-reminder` (or your choice) |
    | **Production branch** | `main` |
+   | **Framework preset** | `None` |
    | **Build command** | `npm install && npm run build` |
    | **Build output directory** | `dist` |
-   | **Root directory** | `/` (leave empty / root) |
+   | **Root directory** | `/` (leave empty) |
 
-### 4b. Add Environment Variables
+### 4c. Add Environment Variables
 
-In the Cloudflare Pages project settings → **Settings → Environment variables**, add:
+Click **Environment variables** (expand the section) and add:
 
-| Variable | Value | Notes |
-|----------|-------|-------|
-| `VITE_SUPABASE_URL` | `https://xxxx.supabase.co` | Your Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | `eyJhbGciOi...` | Your Supabase **anon** (public) key |
-| `VITE_API_URL` | `https://your-backend-url.up.railway.app` | Your deployed backend URL from Step 3 |
-| `NODE_VERSION` | `18` | Ensures Cloudflare uses Node 18 for building |
+| Variable name | Value | Notes |
+|---------------|-------|-------|
+| `VITE_SUPABASE_URL` | `https://xxxx.supabase.co` | Same Supabase URL as backend |
+| `VITE_SUPABASE_ANON_KEY` | `eyJhbGciOi...` | Supabase **anon** key (NOT service_role) |
+| `VITE_API_URL` | `https://sports-reminder-server.onrender.com` | Your Render backend URL from Step 3 |
+| `NODE_VERSION` | `18` | Required for the build to work |
 
-> **Important**: `VITE_` prefix is required for Vite to expose these variables to the frontend at build time. Without the prefix, the variables won't be available in the browser.
+> **Important**: The `VITE_` prefix is required. Vite only exposes env vars prefixed with `VITE_` to the browser. Without this prefix, the variables won't be available in the app.
 
-### 4c. SPA Routing
+### 4d. SPA Routing
 
-The repo includes a `public/_redirects` file that tells Cloudflare Pages to serve `index.html` for all routes. This is required for React Router to handle client-side navigation (e.g., `/matches`, `/settings`). The file is automatically copied to `dist/` during the Vite build.
+The repo already includes a `public/_redirects` file with:
+```
+/* /index.html 200
+```
+This ensures React Router handles all routes. Without it, navigating directly to `/matches` or `/settings` would return a 404.
 
-### 4d. Deploy
+### 4e. Deploy
 
-Click **Save and Deploy**. Cloudflare will:
-1. Clone your repo
-2. Run `npm install && npm run build`
-3. Deploy the `dist/` folder to its global CDN
+1. Click **Save and Deploy**.
+2. Cloudflare will build and deploy your frontend (1-3 minutes).
+3. You'll get a URL like:
+   ```
+   https://sports-reminder.pages.dev
+   ```
 
-You'll get a URL like `https://sports-reminder.pages.dev`.
-
-### 4e. Custom Domain (Optional)
+### 4f. Custom Domain (Optional)
 
 1. In your Cloudflare Pages project → **Custom domains** → **Set up a custom domain**.
 2. Enter your domain (e.g., `streams.yourdomain.com`).
-3. If the domain is already on Cloudflare, DNS records are added automatically.
-4. If not, add the CNAME record shown in the dashboard to your DNS provider.
+3. If the domain is already on Cloudflare, DNS is configured automatically.
+4. Otherwise, add the CNAME record shown in the dashboard to your DNS provider.
 
 ---
 
-## Step 5: Verify Deployment
+## Step 5: Verify Everything Works
 
-### Check Frontend
+### 1. Check Frontend
 - Visit your Cloudflare Pages URL (e.g., `https://sports-reminder.pages.dev`)
-- The dashboard should load with stats cards and empty match lists
+- The dashboard should load with empty stats
 
-### Check Backend
-- Visit `https://your-backend-url/api/health`
-- Should return: `{"status":"ok","timestamp":"..."}`
-
-### Test Telegram
-- Go to the Settings page in your dashboard
-- Enter your Telegram bot token and chat ID (if not set via env)
-- Click "Send Test Message" or POST to:
-  ```bash
-  curl -X POST https://your-backend-url/api/telegram/test \
-    -H "Content-Type: application/json" \
-    -d '{"message": "Hello from Sports Reminder!"}'
-  ```
-
-### Test Cron Jobs
-Manually trigger to verify:
+### 2. Check Backend
 ```bash
-# Fetch matches from sports APIs
-curl -X POST https://your-backend-url/api/cron/fetch-matches
+curl https://sports-reminder-server.onrender.com/api/health
+```
+Expected: `{"status":"ok","timestamp":"..."}`
 
-# Run stream health check
-curl -X POST https://your-backend-url/api/cron/health-check
+### 3. Test Telegram Bot
+```bash
+curl -X POST https://sports-reminder-server.onrender.com/api/telegram/test \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello from Sports Reminder!"}'
+```
+You should receive the message in Telegram.
 
-# Send pending reminders
-curl -X POST https://your-backend-url/api/cron/send-reminders
+### 4. Test Match Fetching
+```bash
+curl -X POST https://sports-reminder-server.onrender.com/api/cron/fetch-matches
+```
+Then check your dashboard — new matches should appear.
+
+### 5. Test Health Check
+```bash
+curl -X POST https://sports-reminder-server.onrender.com/api/cron/health-check
+```
+
+### 6. Test Reminders
+```bash
+curl -X POST https://sports-reminder-server.onrender.com/api/cron/send-reminders
 ```
 
 ---
 
-## Environment Variables Reference
+## Environment Variables — Complete Reference
 
 ### Frontend (Cloudflare Pages)
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VITE_SUPABASE_URL` | Yes | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Yes | Supabase anon/public API key |
-| `VITE_API_URL` | Yes | Backend server URL (no trailing slash) |
-| `NODE_VERSION` | Recommended | Set to `18` for Cloudflare build compatibility |
+| Variable | Required | Where to get it |
+|----------|----------|-----------------|
+| `VITE_SUPABASE_URL` | Yes | Supabase → Settings → API → Project URL |
+| `VITE_SUPABASE_ANON_KEY` | Yes | Supabase → Settings → API → `anon` key |
+| `VITE_API_URL` | Yes | Your Render backend URL (no trailing slash) |
+| `NODE_VERSION` | Yes | Set to `18` |
 
-### Backend (Railway / Render / Fly.io)
+### Backend (Render)
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_SERVICE_KEY` | Yes | Supabase **service_role** key (not the anon key) |
-| `TELEGRAM_BOT_TOKEN` | Yes | Telegram bot token from BotFather |
-| `TELEGRAM_CHAT_ID` | Yes | Your Telegram chat ID for notifications |
-| `FOOTBALL_API_KEY` | No | API-Football key (TheSportsDB free tier works without a key) |
-| `CRICKET_API_KEY` | No | CricAPI key |
-| `PORT` | No | Server port (default: 3001, most hosts auto-assign) |
+| Variable | Required | Where to get it |
+|----------|----------|-----------------|
+| `SUPABASE_URL` | Yes | Supabase → Settings → API → Project URL |
+| `SUPABASE_SERVICE_KEY` | Yes | Supabase → Settings → API → `service_role` key |
+| `TELEGRAM_BOT_TOKEN` | Yes | Telegram @BotFather |
+| `TELEGRAM_CHAT_ID` | Yes | Telegram @userinfobot |
+| `FOOTBALL_API_KEY` | No | [api-football.com](https://www.api-football.com/) (TheSportsDB free tier needs no key) |
+| `CRICKET_API_KEY` | No | [cricapi.com](https://cricapi.com/) |
+| `NODE_VERSION` | Yes | Set to `18` |
 
 ---
 
@@ -248,50 +296,72 @@ curl -X POST https://your-backend-url/api/cron/send-reminders
 
 | Service | URL | Free Tier |
 |---------|-----|-----------|
-| Supabase | [supabase.com](https://supabase.com) | Yes — 500MB DB, 50k auth users |
+| Supabase | [supabase.com](https://supabase.com) | Yes — 500MB DB |
 | TheSportsDB | [thesportsdb.com/api.php](https://www.thesportsdb.com/api.php) | Yes — free for personal use |
-| API-Football | [api-football.com](https://www.api-football.com/) | 100 requests/day free |
-| CricAPI | [cricapi.com](https://cricapi.com/) | 100 requests/day free |
+| API-Football | [api-football.com](https://www.api-football.com/) | 100 requests/day |
+| CricAPI | [cricapi.com](https://cricapi.com/) | 100 requests/day |
 | Telegram Bot | [t.me/BotFather](https://t.me/BotFather) | Free |
 | Cloudflare Pages | [pages.cloudflare.com](https://pages.cloudflare.com) | Free — 500 builds/month |
-| Railway | [railway.app](https://railway.app) | $5 free credit/month |
-| Render | [render.com](https://render.com) | Free tier (spins down after inactivity) |
+| Render | [render.com](https://render.com) | Free — 750 hours/month |
 
 ---
 
 ## Auto-Deploy on Push
 
-Both **Cloudflare Pages** and **Railway/Render** support automatic deploys when you push to `main`:
+Both services auto-deploy when you push to `main`:
 
-- **Cloudflare Pages**: Automatically rebuilds and deploys frontend on every push.
-- **Railway / Render**: Automatically rebuilds and deploys backend on every push.
+- **Cloudflare Pages**: Rebuilds and deploys frontend automatically.
+- **Render**: Rebuilds and deploys backend automatically.
 
-Just push your changes and both services will redeploy within minutes.
+Just `git push` and both redeploy within minutes.
+
+---
+
+## Updating Environment Variables
+
+### On Cloudflare Pages
+1. Go to your project → **Settings** → **Environment variables**
+2. Edit/add variables
+3. **Trigger a new deployment** (Cloudflare only applies env vars during build):
+   - Push a new commit, OR
+   - Go to **Deployments** → click the three dots on the latest deploy → **Retry deployment**
+
+### On Render
+1. Go to your service → **Environment** tab
+2. Edit/add variables
+3. Click **Save Changes** — Render will automatically redeploy with the new values
 
 ---
 
 ## Troubleshooting
 
 ### Frontend shows blank page
-- Check browser console for errors
-- Verify `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set correctly in Cloudflare Pages
-- Redeploy after changing env vars (Cloudflare requires a new build for env changes)
+- Open browser console (F12) → check for errors
+- Verify `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set in Cloudflare Pages
+- Make sure you redeployed after changing env vars
 
-### Backend health check fails
-- Check that all required env vars are set in your hosting dashboard
-- Check deployment logs for startup errors
-- Verify the Supabase URL and service key are correct
+### Backend returns 502 or won't start
+- Check Render logs: go to your service → **Logs** tab
+- Common issues:
+  - Missing env vars → add them in the **Environment** tab
+  - Wrong `Root Directory` → must be `server`
+  - TypeScript build errors → check that `server/tsconfig.json` is valid
 
-### Telegram notifications not working
-- Verify bot token by visiting `https://api.telegram.org/bot<TOKEN>/getMe`
-- Verify chat ID by sending a message to the bot and checking `/getUpdates`
-- Make sure you've started a conversation with the bot (send `/start`)
+### Telegram messages not received
+- Verify bot token: visit `https://api.telegram.org/bot<TOKEN>/getMe`
+- Verify chat ID: visit `https://api.telegram.org/bot<TOKEN>/getUpdates`
+- Make sure you sent `/start` to your bot in Telegram
 
-### CORS errors in browser
-- The backend has `cors()` enabled by default (allows all origins)
-- If you've restricted CORS, add your Cloudflare Pages domain to the allow list
+### CORS errors in browser console
+- The backend has `cors()` enabled (allows all origins) by default
+- If you restricted CORS, add your Cloudflare Pages domain
 
-### Cron jobs not running
-- Cron jobs start automatically when the backend server starts
-- Check backend logs for `Cron jobs scheduled:` message
-- On free-tier hosts like Render, the server may spin down after inactivity — consider upgrading or using an external cron service like [cron-job.org](https://cron-job.org)
+### Cron jobs stopped running
+- On free Render, the server sleeps after 15 min of inactivity
+- Set up a cron pinger (see Step 3f above)
+- Check Render logs for `Cron jobs scheduled:` on startup
+
+### Database connection errors
+- Verify `SUPABASE_URL` starts with `https://` and ends with `.supabase.co`
+- Verify `SUPABASE_SERVICE_KEY` is the `service_role` key, not the `anon` key
+- Check if you ran `supabase/schema.sql` in the SQL Editor
