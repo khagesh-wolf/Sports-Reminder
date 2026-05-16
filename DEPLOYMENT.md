@@ -162,7 +162,11 @@ In the Cloudflare Pages project settings → **Settings → Environment variable
 
 > **Important**: `VITE_` prefix is required for Vite to expose these variables to the frontend at build time. Without the prefix, the variables won't be available in the browser.
 
-### 4c. Deploy
+### 4c. SPA Routing
+
+The repo includes a `public/_redirects` file that tells Cloudflare Pages to serve `index.html` for all routes. This is required for React Router to handle client-side navigation (e.g., `/matches`, `/settings`). The file is automatically copied to `dist/` during the Vite build.
+
+### 4d. Deploy
 
 Click **Save and Deploy**. Cloudflare will:
 1. Clone your repo
@@ -171,7 +175,7 @@ Click **Save and Deploy**. Cloudflare will:
 
 You'll get a URL like `https://sports-reminder.pages.dev`.
 
-### 4d. Custom Domain (Optional)
+### 4e. Custom Domain (Optional)
 
 1. In your Cloudflare Pages project → **Custom domains** → **Set up a custom domain**.
 2. Enter your domain (e.g., `streams.yourdomain.com`).
