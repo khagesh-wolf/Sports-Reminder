@@ -20,4 +20,4 @@ services:
       - key: CRICKET_API_KEY
         sync: false
       - key: NODE_VERSION
-        value: 18
+        value: 22
