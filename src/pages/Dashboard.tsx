@@ -36,15 +36,6 @@ export default function Dashboard() {
     }
   }
 
-  const handleHealthCheck = async () => {
-    try {
-      await api.triggerHealthCheck()
-      toast.success('Health check triggered')
-    } catch {
-      toast.error('Server not configured. Set up the backend server.')
-    }
-  }
-
   const handleSendReminders = async () => {
     try {
       await api.triggerReminders()
@@ -81,9 +72,6 @@ export default function Dashboard() {
         <div className="flex flex-wrap gap-2">
           <button onClick={handleFetchMatches} className="btn-secondary btn-sm">
             <RefreshCw className="w-3.5 h-3.5" /> Fetch Matches
-          </button>
-          <button onClick={handleHealthCheck} className="btn-secondary btn-sm">
-            <Activity className="w-3.5 h-3.5" /> Health Check
           </button>
           <button onClick={handleSendReminders} className="btn-secondary btn-sm">
             <Bell className="w-3.5 h-3.5" /> Send Reminders

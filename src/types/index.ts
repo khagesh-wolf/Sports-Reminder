@@ -122,3 +122,27 @@ export interface StreamFormData {
   label?: string
   sort_order?: number
 }
+
+// Google Sheet types (via SheetDB)
+export interface SheetMatch {
+  Tournament: string
+  Team1_Name: string
+  Team1_Logo: string
+  Team2_Name: string
+  Team2_Logo: string
+  Start_Time: string
+  End_Time: string
+  BG_Image: string
+  Category: string
+  Match_ID: string
+}
+
+export interface SheetStream {
+  id: string
+  url: string
+  type: string
+  Server_Name: string
+  Match_ID: string
+  kid: string
+  key: string
+}
