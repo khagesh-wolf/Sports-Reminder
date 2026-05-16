@@ -101,6 +101,15 @@ PORT=3001
 - [CricAPI](https://cricapi.com/) (free tier available)
 - [SportMonks Cricket](https://www.sportmonks.com/cricket-api/)
 
+## Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the full deployment guide covering:
+- Cloudflare Pages setup for the frontend
+- Backend hosting options (Railway, Render, Fly.io)
+- Environment variable configuration
+- Supabase and Telegram setup
+- Troubleshooting
+
 ## Project Structure
 
 ```
