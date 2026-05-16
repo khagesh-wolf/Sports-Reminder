@@ -115,7 +115,7 @@ Scroll down to **Environment Variables** section and click **Add Environment Var
 | `TELEGRAM_CHAT_ID` | `123456789` | From @userinfobot in Step 2 |
 | `FOOTBALL_API_KEY` | *(leave empty or add key)* | Optional — TheSportsDB free tier works without a key |
 | `CRICKET_API_KEY` | *(leave empty or add key)* | Optional — get free key at [cricapi.com](https://cricapi.com) |
-| `NODE_VERSION` | `18` | Ensures Render uses Node 18 |
+| `NODE_VERSION` | `22` | Ensures Render uses Node 22 (required for native WebSocket support) |
 
 ### 3d. Deploy
 
@@ -199,7 +199,7 @@ Click **Environment variables** (expand the section) and add:
 | `VITE_SUPABASE_URL` | `https://xxxx.supabase.co` | Same Supabase URL as backend |
 | `VITE_SUPABASE_ANON_KEY` | `eyJhbGciOi...` | Supabase **anon** key (NOT service_role) |
 | `VITE_API_URL` | `https://sports-reminder-server.onrender.com` | Your Render backend URL from Step 3 |
-| `NODE_VERSION` | `18` | Required for the build to work |
+| `NODE_VERSION` | `22` | Required for the build to work |
 
 > **Important**: The `VITE_` prefix is required. Vite only exposes env vars prefixed with `VITE_` to the browser. Without this prefix, the variables won't be available in the app.
 
@@ -276,7 +276,7 @@ curl -X POST https://sports-reminder-server.onrender.com/api/cron/send-reminders
 | `VITE_SUPABASE_URL` | Yes | Supabase → Settings → API → Project URL |
 | `VITE_SUPABASE_ANON_KEY` | Yes | Supabase → Settings → API → `anon` key |
 | `VITE_API_URL` | Yes | Your Render backend URL (no trailing slash) |
-| `NODE_VERSION` | Yes | Set to `18` |
+| `NODE_VERSION` | Yes | Set to `22` |
 
 ### Backend (Render)
 
@@ -288,7 +288,7 @@ curl -X POST https://sports-reminder-server.onrender.com/api/cron/send-reminders
 | `TELEGRAM_CHAT_ID` | Yes | Telegram @userinfobot |
 | `FOOTBALL_API_KEY` | No | [api-football.com](https://www.api-football.com/) (TheSportsDB free tier needs no key) |
 | `CRICKET_API_KEY` | No | [cricapi.com](https://cricapi.com/) |
-| `NODE_VERSION` | Yes | Set to `18` |
+| `NODE_VERSION` | Yes | Set to `22` |
 
 ---
 

@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import ws from 'ws'
 import { setupCronJobs } from './cron/index.js'
 import { cronRoutes } from './routes/cron.js'
 import { telegramRoutes } from './routes/telegram.js'
@@ -14,11 +15,32 @@ app.use(express.json())
 const supabaseUrl = process.env.SUPABASE_URL || ''
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || ''
 
-if (!supabaseUrl || !supabaseKey) {
-  console.warn('WARNING: SUPABASE_URL and SUPABASE_SERVICE_KEY not set. Server will start but DB operations will fail.')
+let supabase: SupabaseClient
+
+if (supabaseUrl && supabaseKey) {
+  supabase = createClient(supabaseUrl, supabaseKey, {
+    realtime: { transport: ws as unknown as typeof WebSocket }
+  })
+  console.log('Supabase client initialized.')
+} else {
+  console.warn('WARNING: SUPABASE_URL and/or SUPABASE_SERVICE_KEY not set. Server will start but DB operations will fail.')
+  supabase = new Proxy({} as SupabaseClient, {
+    get(_target, prop) {
+      if (prop === 'from') {
+        return () => ({
+          select: () => Promise.resolve({ data: [], error: { message: 'Supabase not configured' } }),
+          insert: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+          update: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+          delete: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+          upsert: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+        })
+      }
+      return () => ({})
+    }
+  })
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export { supabase }
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
