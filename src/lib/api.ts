@@ -290,6 +290,7 @@ export interface ApiMatch {
 }
 
 const THESPORTSDB_BASE = 'https://www.thesportsdb.com/api/v1/json/3'
+const SPORTS_PROXY_BASE = API_URL ? `${API_URL}/api/sports` : ''
 
 const FOOTBALL_LEAGUES: { id: string; name: string }[] = [
   { id: '4328', name: 'English Premier League' },
@@ -312,7 +313,10 @@ const FOOTBALL_LEAGUES: { id: string; name: string }[] = [
 
 async function fetchLeagueNextEvents(leagueId: string): Promise<ApiMatch[]> {
   try {
-    const res = await fetch(`${THESPORTSDB_BASE}/eventsnextleague.php?id=${leagueId}`)
+    const url = SPORTS_PROXY_BASE
+      ? `${SPORTS_PROXY_BASE}/league/${leagueId}`
+      : `${THESPORTSDB_BASE}/eventsnextleague.php?id=${leagueId}`
+    const res = await fetch(url)
     if (!res.ok) return []
     const data = await res.json()
     if (!data.events) return []
