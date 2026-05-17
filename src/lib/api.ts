@@ -269,39 +269,39 @@ export async function sendTestTelegram(message: string): Promise<{ success: bool
 }
 
 // ============================================
-// GOOGLE SHEET (via SheetDB)
+// GOOGLE SHEET (direct opensheet reads + SheetDB writes)
 // ============================================
 import type { SheetMatch, SheetStream } from '@/types'
 
+const GOOGLE_SHEETS_ID = import.meta.env.VITE_GOOGLE_SHEETS_ID || '1RthMctHFdKX7yEznC25Va8weBKwjchXCvXS4f4QCl6U'
+const OPENSHEET_BASE = 'https://opensheet.elk.sh'
+const SHEETDB_API_URL = import.meta.env.VITE_SHEETDB_API_URL || 'https://sheetdb.io/api/v1/7x064zge9xgsu'
+
 export async function getSheetMatches(): Promise<SheetMatch[]> {
-  const res = await fetch(`${API_URL}/api/sheetdb/matches`)
+  const res = await fetch(`${OPENSHEET_BASE}/${GOOGLE_SHEETS_ID}/Matches`)
   if (!res.ok) throw new Error('Failed to fetch sheet matches')
-  const json = await res.json()
-  return json.data || []
+  return await res.json()
 }
 
 export async function getSheetStreams(): Promise<SheetStream[]> {
-  const res = await fetch(`${API_URL}/api/sheetdb/streams`)
+  const res = await fetch(`${OPENSHEET_BASE}/${GOOGLE_SHEETS_ID}/Streams`)
   if (!res.ok) throw new Error('Failed to fetch sheet streams')
-  const json = await res.json()
-  return json.data || []
+  return await res.json()
 }
 
 export async function getSheetStreamsByMatchId(matchId: string): Promise<SheetStream[]> {
-  const res = await fetch(`${API_URL}/api/sheetdb/streams/${encodeURIComponent(matchId)}`)
-  if (!res.ok) throw new Error('Failed to fetch sheet streams')
-  const json = await res.json()
-  return json.data || []
+  const all = await getSheetStreams()
+  return all.filter(s => s.Match_ID === matchId)
 }
 
 export async function addMatchToSheet(match: SheetMatch): Promise<void> {
-  const res = await fetch(`${API_URL}/api/sheetdb/matches`, {
+  const res = await fetch(`${SHEETDB_API_URL}?sheet=Matches`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(match),
+    body: JSON.stringify({ data: [match] }),
   })
   if (!res.ok) {
-    const json = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(json.error || 'Failed to add match to sheet')
+    const text = await res.text().catch(() => 'Unknown error')
+    throw new Error(`Failed to add match to sheet: ${text}`)
   }
 }
