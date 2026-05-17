@@ -80,9 +80,11 @@ export default function Dashboard() {
         .filter(m => !sheetIds.has(m.id))
         .map(apiToDash)
 
-      const merged = [...sheetDisplays, ...apiDisplays].sort((a, b) =>
-        new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-      )
+      const merged = [...sheetDisplays, ...apiDisplays]
+        .filter(m => getMatchStatus(m) !== 'finished')
+        .sort((a, b) =>
+          new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+        )
       setAllMatches(merged)
       setSheetStreams(streams)
     } catch {
@@ -92,10 +94,13 @@ export default function Dashboard() {
     }
   }
 
-  const getMatchStatus = (m: DashboardMatch): 'upcoming' | 'live' | 'finished' => {
+  const getMatchStatus = (m: { startTime: string; endTime: string }): 'upcoming' | 'live' | 'finished' => {
     const now = new Date()
     const start = new Date(m.startTime)
-    const end = m.endTime ? new Date(m.endTime) : new Date(start.getTime() + 4 * 60 * 60 * 1000)
+    if (isNaN(start.getTime())) return 'upcoming'
+    const end = m.endTime && !isNaN(new Date(m.endTime).getTime())
+      ? new Date(m.endTime)
+      : new Date(start.getTime() + 4 * 60 * 60 * 1000)
     if (now < start) return 'upcoming'
     if (now >= start && now <= end) return 'live'
     return 'finished'

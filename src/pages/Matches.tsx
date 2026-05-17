@@ -4,7 +4,7 @@ import type { ApiMatch } from '@/lib/api'
 import toast from 'react-hot-toast'
 import type { SheetMatch } from '@/types'
 import {
-  Search, Calendar, FileSpreadsheet, RefreshCw, Globe, Upload,
+  Search, Calendar, FileSpreadsheet, RefreshCw, Globe, Upload, AlertTriangle,
 } from 'lucide-react'
 
 type SourceFilter = 'all' | 'sheet' | 'api'
@@ -23,9 +23,11 @@ interface DisplayMatch {
   source: 'sheet' | 'api'
   bgImage: string
   apiMatch?: ApiMatch
+  dateWarning?: string
 }
 
 function sheetToDisplay(m: SheetMatch): DisplayMatch {
+  const dates = api.sanitizeMatchDates(m.Start_Time, m.End_Time)
   return {
     id: `sheet-${m.Match_ID || `${m.Team1_Name}-${m.Team2_Name}`}`,
     tournament: m.Tournament,
@@ -33,12 +35,13 @@ function sheetToDisplay(m: SheetMatch): DisplayMatch {
     team2: m.Team2_Name,
     team1Logo: m.Team1_Logo,
     team2Logo: m.Team2_Logo,
-    startTime: m.Start_Time,
-    endTime: m.End_Time,
+    startTime: dates.startTime,
+    endTime: dates.endTime,
     category: m.Category,
     matchId: m.Match_ID,
     source: 'sheet',
     bgImage: m.BG_Image,
+    dateWarning: dates.hasWarning ? dates.warning : undefined,
   }
 }
 
@@ -89,9 +92,11 @@ export default function Matches() {
         .filter(m => !sheetIds.has(m.id))
         .map(apiToDisplay)
 
-      const merged = [...sheetDisplays, ...apiDisplays].sort((a, b) =>
-        new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-      )
+      const merged = [...sheetDisplays, ...apiDisplays]
+        .filter(m => getMatchStatus(m) !== 'finished')
+        .sort((a, b) =>
+          new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+        )
       setDisplayMatches(merged)
     } catch {
       toast.error('Failed to load matches')
@@ -115,6 +120,18 @@ export default function Matches() {
     }
   }
 
+  const getMatchStatus = (m: { startTime: string; endTime: string }): 'upcoming' | 'live' | 'finished' => {
+    const now = new Date()
+    const start = new Date(m.startTime)
+    if (isNaN(start.getTime())) return 'upcoming'
+    const end = m.endTime && !isNaN(new Date(m.endTime).getTime())
+      ? new Date(m.endTime)
+      : new Date(start.getTime() + 4 * 60 * 60 * 1000)
+    if (now < start) return 'upcoming'
+    if (now >= start && now <= end) return 'live'
+    return 'finished'
+  }
+
   const categories = [...new Set(displayMatches.map(m => m.category).filter(Boolean))]
 
   const filtered = displayMatches.filter((m) => {
@@ -135,15 +152,6 @@ export default function Matches() {
 
   const sheetCount = displayMatches.filter(m => m.source === 'sheet').length
   const apiCount = displayMatches.filter(m => m.source === 'api').length
-
-  const getMatchStatus = (m: DisplayMatch): 'upcoming' | 'live' | 'finished' => {
-    const now = new Date()
-    const start = new Date(m.startTime)
-    const end = m.endTime ? new Date(m.endTime) : new Date(start.getTime() + 4 * 60 * 60 * 1000)
-    if (now < start) return 'upcoming'
-    if (now >= start && now <= end) return 'live'
-    return 'finished'
-  }
 
   const getTimeUntil = (dateStr: string): string => {
     const diff = new Date(dateStr).getTime() - Date.now()
@@ -259,6 +267,12 @@ export default function Matches() {
                         <span className="text-primary-400">in {getTimeUntil(match.startTime)}</span>
                       )}
                     </div>
+                    {match.dateWarning && (
+                      <div className="flex items-center gap-1.5 mt-1.5 text-xs text-yellow-400">
+                        <AlertTriangle className="w-3 h-3" />
+                        {match.dateWarning}
+                      </div>
+                    )}
                   </div>
                   {match.source === 'api' && !isInSheet && (
                     <button
