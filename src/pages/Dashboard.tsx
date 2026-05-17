@@ -1,47 +1,69 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAppStore } from '@/store/appStore'
-import { formatDateTime, getTimeUntil, getSportIcon } from '@/lib/utils'
 import * as api from '@/lib/api'
-import toast from 'react-hot-toast'
+import type { SheetMatch, SheetStream } from '@/types'
 import {
   Calendar,
   Play,
-  AlertTriangle,
-  Star,
   Bell,
-  Radio,
   RefreshCw,
   ChevronRight,
-  Zap,
-  Activity,
-  Shield,
+  FileSpreadsheet,
 } from 'lucide-react'
 
 export default function Dashboard() {
-  const { stats, upcomingMatches, liveMatches, fetchStats, fetchUpcomingMatches, fetchLiveMatches } = useAppStore()
+  const [sheetMatches, setSheetMatches] = useState<SheetMatch[]>([])
+  const [sheetStreams, setSheetStreams] = useState<SheetStream[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchStats()
-    fetchUpcomingMatches()
-    fetchLiveMatches()
-  }, [fetchStats, fetchUpcomingMatches, fetchLiveMatches])
+    loadData()
+  }, [])
 
-  const handleFetchMatches = async () => {
+  const loadData = async () => {
+    setLoading(true)
     try {
-      await api.triggerMatchFetch()
-      toast.success('Match fetch triggered')
+      const [matches, streams] = await Promise.all([
+        api.getSheetMatches(),
+        api.getSheetStreams(),
+      ])
+      setSheetMatches(matches)
+      setSheetStreams(streams)
     } catch {
-      toast.error('Server not configured. Set up the backend server.')
+      // Will show empty state
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleSendReminders = async () => {
+  const getMatchStatus = (m: SheetMatch): 'upcoming' | 'live' | 'finished' => {
+    const now = new Date()
+    const start = new Date(m.Start_Time)
+    const end = m.End_Time ? new Date(m.End_Time) : new Date(start.getTime() + 4 * 60 * 60 * 1000)
+    if (now < start) return 'upcoming'
+    if (now >= start && now <= end) return 'live'
+    return 'finished'
+  }
+
+  const upcoming = sheetMatches.filter(m => getMatchStatus(m) === 'upcoming')
+  const live = sheetMatches.filter(m => getMatchStatus(m) === 'live')
+
+  const getTimeUntil = (dateStr: string): string => {
+    const diff = new Date(dateStr).getTime() - Date.now()
+    if (diff <= 0) return 'Started'
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+    if (days > 0) return `${days}d ${hours}h`
+    if (hours > 0) return `${hours}h ${mins}m`
+    return `${mins}m`
+  }
+
+  const formatDate = (dateStr: string): string => {
     try {
-      await api.triggerReminders()
-      toast.success('Reminders sent')
+      return new Date(dateStr).toLocaleString()
     } catch {
-      toast.error('Server not configured. Set up the backend server.')
+      return dateStr
     }
   }
 
@@ -52,77 +74,42 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-dark-400 text-sm mt-1">Overview of your sports streams</p>
         </div>
+        <button onClick={loadData} className="btn-secondary btn-sm" disabled={loading}>
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+        </button>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Calendar} label="Total Matches" value={stats?.totalMatches ?? 0} color="text-blue-400" bg="bg-blue-500/10" />
-        <StatCard icon={Radio} label="Live Now" value={stats?.liveMatches ?? 0} color="text-red-400" bg="bg-red-500/10" />
-        <StatCard icon={Play} label="Active Streams" value={stats?.activeStreams ?? 0} color="text-green-400" bg="bg-green-500/10" />
-        <StatCard icon={AlertTriangle} label="Missing Streams" value={stats?.missingStreams ?? 0} color="text-yellow-400" bg="bg-yellow-500/10" />
-        <StatCard icon={Activity} label="Upcoming" value={stats?.upcomingMatches ?? 0} color="text-purple-400" bg="bg-purple-500/10" />
-        <StatCard icon={Shield} label="Broken Streams" value={stats?.brokenStreams ?? 0} color="text-red-400" bg="bg-red-500/10" />
-        <StatCard icon={Star} label="Favorite Teams" value={stats?.favoriteTeams ?? 0} color="text-amber-400" bg="bg-amber-500/10" />
-        <StatCard icon={Bell} label="Notifications" value={stats?.notificationsSent ?? 0} color="text-cyan-400" bg="bg-cyan-500/10" />
+        <StatCard icon={Calendar} label="Total Matches" value={sheetMatches.length} color="text-blue-400" bg="bg-blue-500/10" />
+        <StatCard icon={Bell} label="Upcoming" value={upcoming.length} color="text-purple-400" bg="bg-purple-500/10" />
+        <StatCard icon={Play} label="Live Now" value={live.length} color="text-red-400" bg="bg-red-500/10" />
+        <StatCard icon={FileSpreadsheet} label="Streams" value={sheetStreams.length} color="text-green-400" bg="bg-green-500/10" />
       </div>
 
       {/* Quick Actions */}
       <div className="card">
         <h2 className="font-semibold mb-3">Quick Actions</h2>
         <div className="flex flex-wrap gap-2">
-          <button onClick={handleFetchMatches} className="btn-secondary btn-sm">
-            <RefreshCw className="w-3.5 h-3.5" /> Fetch Matches
-          </button>
-          <button onClick={handleSendReminders} className="btn-secondary btn-sm">
-            <Bell className="w-3.5 h-3.5" /> Send Reminders
-          </button>
           <Link to="/matches" className="btn-primary btn-sm">
             <Calendar className="w-3.5 h-3.5" /> Manage Matches
+          </Link>
+          <Link to="/streams" className="btn-secondary btn-sm">
+            <Play className="w-3.5 h-3.5" /> View Streams
           </Link>
         </div>
       </div>
 
-      {/* Warnings */}
-      {stats && stats.missingStreams > 0 && (
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-yellow-300 font-medium text-sm">Stream Links Missing</p>
-            <p className="text-yellow-400/70 text-xs mt-1">
-              {stats.missingStreams} upcoming match{stats.missingStreams > 1 ? 'es' : ''} without stream links.
-            </p>
-            <Link to="/matches" className="text-yellow-400 text-xs underline mt-2 inline-block">
-              View matches
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {stats && stats.brokenStreams > 0 && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
-          <Zap className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-red-300 font-medium text-sm">Broken Streams Detected</p>
-            <p className="text-red-400/70 text-xs mt-1">
-              {stats.brokenStreams} stream{stats.brokenStreams > 1 ? 's' : ''} failed health check.
-            </p>
-            <Link to="/streams" className="text-red-400 text-xs underline mt-2 inline-block">
-              View streams
-            </Link>
-          </div>
-        </div>
-      )}
-
       {/* Live Matches */}
-      {liveMatches.length > 0 && (
+      {live.length > 0 && (
         <div>
           <h2 className="font-semibold mb-3 flex items-center gap-2">
             <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
             Live Now
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            {liveMatches.map((match) => (
-              <MatchCard key={match.id} match={match} />
+            {live.map((match) => (
+              <SheetMatchCard key={match.Match_ID} match={match} status="live" formatDate={formatDate} getTimeUntil={getTimeUntil} />
             ))}
           </div>
         </div>
@@ -136,15 +123,22 @@ export default function Dashboard() {
             View all <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
-        {upcomingMatches.length === 0 ? (
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="card skeleton h-20" />
+            ))}
+          </div>
+        ) : upcoming.length === 0 ? (
           <div className="card text-center py-8 text-dark-400">
             <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No upcoming matches</p>
+            <p className="text-xs mt-1">Add matches to your Google Sheet</p>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            {upcomingMatches.slice(0, 6).map((match) => (
-              <MatchCard key={match.id} match={match} />
+            {upcoming.slice(0, 6).map((match) => (
+              <SheetMatchCard key={match.Match_ID} match={match} status="upcoming" formatDate={formatDate} getTimeUntil={getTimeUntil} />
             ))}
           </div>
         )}
@@ -169,37 +163,34 @@ function StatCard({ icon: Icon, label, value, color, bg }: {
   )
 }
 
-function MatchCard({ match }: { match: import('@/types').Match }) {
-  const hasStreams = match.streams && match.streams.length > 0
+function SheetMatchCard({ match, status, formatDate, getTimeUntil }: {
+  match: SheetMatch; status: string;
+  formatDate: (d: string) => string; getTimeUntil: (d: string) => string
+}) {
   return (
-    <Link to={`/matches/${match.id}`} className="card-hover block">
+    <div className="card-hover block">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-dark-400">{getSportIcon(match.sport)} {match.league}</span>
-        <span className={`badge ${match.status === 'live' ? 'badge-live' : match.status === 'upcoming' ? 'badge-upcoming' : 'badge-finished'}`}>
-          {match.status === 'live' && <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />}
-          {match.status}
+        <span className="text-xs text-dark-400">
+          {match.Category === 'Cricket' ? '🏏' : '⚽'} {match.Tournament}
+        </span>
+        <span className={`badge ${status === 'live' ? 'badge-live' : 'badge-upcoming'}`}>
+          {status === 'live' && <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />}
+          {status}
         </span>
       </div>
       <div className="flex items-center gap-3 mb-2">
-        <div className="flex-1 text-right">
-          <p className="font-semibold text-sm truncate">{match.team1}</p>
+        {match.Team1_Logo && <img src={match.Team1_Logo} alt="" className="w-5 h-5 rounded-full object-cover" />}
+        <div className="flex-1 text-center">
+          <p className="font-semibold text-sm truncate">{match.Team1_Name} vs {match.Team2_Name}</p>
         </div>
-        <span className="text-dark-500 text-xs font-bold">VS</span>
-        <div className="flex-1">
-          <p className="font-semibold text-sm truncate">{match.team2}</p>
-        </div>
+        {match.Team2_Logo && <img src={match.Team2_Logo} alt="" className="w-5 h-5 rounded-full object-cover" />}
       </div>
       <div className="flex items-center justify-between text-xs text-dark-400">
-        <span>{formatDateTime(match.match_time)}</span>
-        <div className="flex items-center gap-2">
-          {!hasStreams && match.status === 'upcoming' && (
-            <span className="text-yellow-400">No stream</span>
-          )}
-          {match.status === 'upcoming' && (
-            <span className="text-primary-400">{getTimeUntil(match.match_time)}</span>
-          )}
-        </div>
+        <span>{formatDate(match.Start_Time)}</span>
+        {status === 'upcoming' && (
+          <span className="text-primary-400">{getTimeUntil(match.Start_Time)}</span>
+        )}
       </div>
-    </Link>
+    </div>
   )
 }
