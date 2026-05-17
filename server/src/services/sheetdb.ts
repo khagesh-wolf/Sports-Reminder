@@ -1,4 +1,6 @@
 const SHEETDB_API_URL = process.env.SHEETDB_API_URL || ''
+const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID || '1RthMctHFdKX7yEznC25Va8weBKwjchXCvXS4f4QCl6U'
+const OPENSHEET_BASE = 'https://opensheet.elk.sh'
 
 export interface SheetMatch {
   Tournament: string
@@ -24,14 +26,9 @@ export interface SheetStream {
 }
 
 export async function getSheetMatches(): Promise<SheetMatch[]> {
-  if (!SHEETDB_API_URL) {
-    console.warn('SHEETDB_API_URL not configured')
-    return []
-  }
-
   try {
-    const res = await fetch(`${SHEETDB_API_URL}?sheet=Matches`)
-    if (!res.ok) throw new Error(`SheetDB responded ${res.status}`)
+    const res = await fetch(`${OPENSHEET_BASE}/${GOOGLE_SHEETS_ID}/Matches`)
+    if (!res.ok) throw new Error(`opensheet responded ${res.status}`)
     return await res.json()
   } catch (err) {
     console.error('Failed to fetch sheet matches:', err)
@@ -40,14 +37,9 @@ export async function getSheetMatches(): Promise<SheetMatch[]> {
 }
 
 export async function getSheetStreams(): Promise<SheetStream[]> {
-  if (!SHEETDB_API_URL) {
-    console.warn('SHEETDB_API_URL not configured')
-    return []
-  }
-
   try {
-    const res = await fetch(`${SHEETDB_API_URL}?sheet=Streams`)
-    if (!res.ok) throw new Error(`SheetDB responded ${res.status}`)
+    const res = await fetch(`${OPENSHEET_BASE}/${GOOGLE_SHEETS_ID}/Streams`)
+    if (!res.ok) throw new Error(`opensheet responded ${res.status}`)
     return await res.json()
   } catch (err) {
     console.error('Failed to fetch sheet streams:', err)
@@ -75,12 +67,9 @@ export async function addMatchToSheet(match: SheetMatch): Promise<boolean> {
 }
 
 export async function getSheetStreamsByMatchId(matchId: string): Promise<SheetStream[]> {
-  if (!SHEETDB_API_URL) return []
-
   try {
-    const res = await fetch(`${SHEETDB_API_URL}/search?Match_ID=${encodeURIComponent(matchId)}&sheet=Streams`)
-    if (!res.ok) throw new Error(`SheetDB responded ${res.status}`)
-    return await res.json()
+    const all = await getSheetStreams()
+    return all.filter(s => s.Match_ID === matchId)
   } catch (err) {
     console.error('Failed to fetch sheet streams for match:', err)
     return []
