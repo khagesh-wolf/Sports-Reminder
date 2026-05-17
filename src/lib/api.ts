@@ -356,14 +356,59 @@ export async function getCricketMatches(): Promise<ApiMatch[]> {
   )
 }
 
+function isValidDate(dateStr: string): boolean {
+  if (!dateStr) return false
+  const d = new Date(dateStr)
+  return !isNaN(d.getTime())
+}
+
+function isMatchFinished(startTime: string, endTime: string, status: string): boolean {
+  if (status === 'finished') return true
+  if (!isValidDate(startTime)) return false
+  const end = endTime && isValidDate(endTime)
+    ? new Date(endTime).getTime()
+    : new Date(startTime).getTime() + 4 * 60 * 60 * 1000
+  return Date.now() > end
+}
+
+export function sanitizeMatchDates(startTime: string, endTime: string): { startTime: string; endTime: string; hasWarning: boolean; warning: string } {
+  let warning = ''
+  let hasWarning = false
+  let sanitizedEnd = endTime
+
+  if (!isValidDate(startTime)) {
+    return { startTime, endTime, hasWarning: true, warning: 'Invalid start time' }
+  }
+
+  if (endTime && !isValidDate(endTime)) {
+    sanitizedEnd = ''
+    hasWarning = true
+    warning = 'Invalid end time (ignored)'
+  }
+
+  if (sanitizedEnd && isValidDate(sanitizedEnd)) {
+    const s = new Date(startTime).getTime()
+    const e = new Date(sanitizedEnd).getTime()
+    if (e <= s) {
+      sanitizedEnd = ''
+      hasWarning = true
+      warning = 'End time before start time (ignored)'
+    }
+  }
+
+  return { startTime, endTime: sanitizedEnd, hasWarning, warning }
+}
+
 export async function getAllApiMatches(): Promise<ApiMatch[]> {
   const [football, cricket] = await Promise.all([
     getFootballMatches(),
     getCricketMatches(),
   ])
-  return [...football, ...cricket].sort((a, b) =>
-    new Date(a.matchTime).getTime() - new Date(b.matchTime).getTime()
-  )
+  return [...football, ...cricket]
+    .filter(m => isValidDate(m.matchTime) && !isMatchFinished(m.matchTime, '', m.status))
+    .sort((a, b) =>
+      new Date(a.matchTime).getTime() - new Date(b.matchTime).getTime()
+    )
 }
 
 export function apiMatchToSheetFormat(m: ApiMatch): SheetMatch {
