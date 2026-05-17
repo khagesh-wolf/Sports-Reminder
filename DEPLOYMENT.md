@@ -115,6 +115,7 @@ Scroll down to **Environment Variables** section and click **Add Environment Var
 | `TELEGRAM_CHAT_ID` | `123456789` | From @userinfobot in Step 2 |
 | `FOOTBALL_API_KEY` | *(leave empty or add key)* | Optional — TheSportsDB free tier works without a key |
 | `CRICKET_API_KEY` | *(leave empty or add key)* | Optional — get free key at [cricapi.com](https://cricapi.com) |
+| `SHEETDB_API_URL` | `https://sheetdb.io/api/v1/...` | Your SheetDB API URL for Google Sheets integration |
 | `NODE_VERSION` | `22` | Ensures Render uses Node 22 (required for native WebSocket support) |
 
 ### 3d. Deploy
@@ -255,9 +256,10 @@ curl -X POST https://sports-reminder-server.onrender.com/api/cron/fetch-matches
 ```
 Then check your dashboard — new matches should appear.
 
-### 5. Test Health Check
+### 5. Test Google Sheet Integration
 ```bash
-curl -X POST https://sports-reminder-server.onrender.com/api/cron/health-check
+curl https://sports-reminder-server.onrender.com/api/sheetdb/matches
+curl https://sports-reminder-server.onrender.com/api/sheetdb/streams
 ```
 
 ### 6. Test Reminders
@@ -288,6 +290,7 @@ curl -X POST https://sports-reminder-server.onrender.com/api/cron/send-reminders
 | `TELEGRAM_CHAT_ID` | Yes | Telegram @userinfobot |
 | `FOOTBALL_API_KEY` | No | [api-football.com](https://www.api-football.com/) (TheSportsDB free tier needs no key) |
 | `CRICKET_API_KEY` | No | [cricapi.com](https://cricapi.com/) |
+| `SHEETDB_API_URL` | No | [sheetdb.io](https://sheetdb.io/) — Your SheetDB API endpoint for Google Sheets |
 | `NODE_VERSION` | Yes | Set to `22` |
 
 ---
@@ -303,6 +306,7 @@ curl -X POST https://sports-reminder-server.onrender.com/api/cron/send-reminders
 | Telegram Bot | [t.me/BotFather](https://t.me/BotFather) | Free |
 | Cloudflare Pages | [pages.cloudflare.com](https://pages.cloudflare.com) | Free — 500 builds/month |
 | Render | [render.com](https://render.com) | Free — 750 hours/month |
+| SheetDB | [sheetdb.io](https://sheetdb.io/) | Free — 500 requests/month |
 
 ---
 

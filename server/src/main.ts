@@ -5,6 +5,7 @@ import ws from 'ws'
 import { setupCronJobs } from './cron/index.js'
 import { cronRoutes } from './routes/cron.js'
 import { telegramRoutes } from './routes/telegram.js'
+import { sheetdbRoutes } from './routes/sheetdb.js'
 
 const app = express()
 const PORT = parseInt(process.env.PORT || '3001', 10)
@@ -48,6 +49,7 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/cron', cronRoutes)
 app.use('/api/telegram', telegramRoutes)
+app.use('/api/sheetdb', sheetdbRoutes)
 
 setupCronJobs()
 

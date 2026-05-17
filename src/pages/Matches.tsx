@@ -4,10 +4,10 @@ import { useAppStore } from '@/store/appStore'
 import { formatDateTime, getTimeUntil, getSportIcon } from '@/lib/utils'
 import * as api from '@/lib/api'
 import toast from 'react-hot-toast'
-import type { MatchFormData, Sport } from '@/types'
+import type { MatchFormData, Sport, SheetMatch } from '@/types'
 import {
   Plus, Search, Calendar, Trash2, Edit3,
-  Eye, EyeOff, X,
+  Eye, EyeOff, X, FileSpreadsheet, Upload, RefreshCw,
 } from 'lucide-react'
 
 const LEAGUES = {
@@ -22,10 +22,30 @@ export default function Matches() {
   const [sportFilter, setSportFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [sheetMatchIds, setSheetMatchIds] = useState<Set<string>>(new Set())
+  const [sheetLoading, setSheetLoading] = useState(false)
+  const [addingToSheet, setAddingToSheet] = useState<string | null>(null)
 
   useEffect(() => {
     fetchMatches({ sport: sportFilter || undefined, status: statusFilter || undefined, search: searchQuery || undefined })
   }, [fetchMatches, sportFilter, statusFilter, searchQuery])
+
+  useEffect(() => {
+    loadSheetMatches()
+  }, [])
+
+  const loadSheetMatches = async () => {
+    setSheetLoading(true)
+    try {
+      const sheetMatches = await api.getSheetMatches()
+      const ids = new Set(sheetMatches.map(m => m.Match_ID).filter(Boolean))
+      setSheetMatchIds(ids)
+    } catch {
+      // SheetDB may not be configured
+    } finally {
+      setSheetLoading(false)
+    }
+  }
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this match?')) return
@@ -46,6 +66,37 @@ export default function Matches() {
     } catch {
       toast.error('Failed to update match')
     }
+  }
+
+  const handleAddToSheet = async (match: typeof matches[0]) => {
+    const slug = `${match.team1.toLowerCase().replace(/\s+/g, '')}vs${match.team2.toLowerCase().replace(/\s+/g, '')}`
+    const sheetMatch: SheetMatch = {
+      Tournament: match.league,
+      Team1_Name: match.team1,
+      Team1_Logo: match.team1_logo || '',
+      Team2_Name: match.team2,
+      Team2_Logo: match.team2_logo || '',
+      Start_Time: match.match_time,
+      End_Time: '',
+      BG_Image: '',
+      Category: match.sport === 'cricket' ? 'Cricket' : 'Football',
+      Match_ID: match.external_id || slug,
+    }
+    setAddingToSheet(match.id)
+    try {
+      await api.addMatchToSheet(sheetMatch)
+      toast.success('Match added to Google Sheet')
+      setSheetMatchIds(prev => new Set([...prev, sheetMatch.Match_ID]))
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setAddingToSheet(null)
+    }
+  }
+
+  const isInSheet = (match: typeof matches[0]): boolean => {
+    const slug = `${match.team1.toLowerCase().replace(/\s+/g, '')}vs${match.team2.toLowerCase().replace(/\s+/g, '')}`
+    return sheetMatchIds.has(match.external_id || slug)
   }
 
   return (
@@ -115,17 +166,23 @@ export default function Matches() {
         <div className="space-y-3">
           {matches.map((match) => {
             const hasStreams = match.streams && match.streams.length > 0
+            const inSheet = isInSheet(match)
             return (
               <div key={match.id} className="card-hover">
                 <div className="flex items-start gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-xs text-dark-400">{getSportIcon(match.sport)} {match.league}</span>
                       <span className={`badge ${match.status === 'live' ? 'badge-live' : match.status === 'upcoming' ? 'badge-upcoming' : 'badge-finished'}`}>
                         {match.status === 'live' && <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />}
                         {match.status}
                       </span>
                       {match.published && <span className="badge bg-primary-500/20 text-primary-400">Published</span>}
+                      {inSheet && (
+                        <span className="badge bg-green-500/20 text-green-400 gap-1">
+                          <FileSpreadsheet className="w-3 h-3" /> In Sheet
+                        </span>
+                      )}
                     </div>
                     <Link to={`/matches/${match.id}`} className="hover:text-primary-400 transition-colors">
                       <h3 className="font-semibold">{match.team1} vs {match.team2}</h3>
@@ -146,6 +203,20 @@ export default function Matches() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    {!inSheet && !sheetLoading && (
+                      <button
+                        onClick={() => handleAddToSheet(match)}
+                        className="btn-ghost btn-sm text-green-400"
+                        title="Add to Google Sheet"
+                        disabled={addingToSheet === match.id}
+                      >
+                        {addingToSheet === match.id ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Upload className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
                     <button
                       onClick={() => handleTogglePublish(match.id, match.published)}
                       className="btn-ghost btn-sm"
