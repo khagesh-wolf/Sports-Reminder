@@ -446,6 +446,19 @@ function formatDateForSheet(isoStr: string): string {
   }
 }
 
+function estimateEndTime(matchTime: string, sport: 'football' | 'cricket'): string {
+  if (!matchTime) return ''
+  try {
+    const start = new Date(matchTime)
+    if (isNaN(start.getTime())) return ''
+    const durationMs = sport === 'cricket' ? 4 * 60 * 60 * 1000 : 2 * 60 * 60 * 1000
+    const end = new Date(start.getTime() + durationMs)
+    return end.toISOString()
+  } catch {
+    return ''
+  }
+}
+
 export function apiMatchToSheetFormat(m: ApiMatch): SheetMatch {
   return {
     Tournament: m.league,
@@ -454,7 +467,7 @@ export function apiMatchToSheetFormat(m: ApiMatch): SheetMatch {
     Team2_Name: m.team2,
     Team2_Logo: m.team2Logo,
     Start_Time: formatDateForSheet(m.matchTime),
-    End_Time: '',
+    End_Time: formatDateForSheet(estimateEndTime(m.matchTime, m.sport)),
     BG_Image: m.poster,
     Category: m.sport === 'cricket' ? 'Cricket' : 'Football',
     Match_ID: m.id,
