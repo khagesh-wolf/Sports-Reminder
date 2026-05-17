@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as api from '@/lib/api'
+import type { ApiMatch } from '@/lib/api'
 import type { SheetMatch, SheetStream } from '@/types'
 import {
   Calendar,
@@ -9,10 +10,54 @@ import {
   RefreshCw,
   ChevronRight,
   FileSpreadsheet,
+  Globe,
 } from 'lucide-react'
 
+interface DashboardMatch {
+  id: string
+  tournament: string
+  team1: string
+  team2: string
+  team1Logo: string
+  team2Logo: string
+  startTime: string
+  endTime: string
+  category: string
+  source: 'sheet' | 'api'
+}
+
+function sheetToDash(m: SheetMatch): DashboardMatch {
+  return {
+    id: `sheet-${m.Match_ID || `${m.Team1_Name}-${m.Team2_Name}`}`,
+    tournament: m.Tournament,
+    team1: m.Team1_Name,
+    team2: m.Team2_Name,
+    team1Logo: m.Team1_Logo,
+    team2Logo: m.Team2_Logo,
+    startTime: m.Start_Time,
+    endTime: m.End_Time,
+    category: m.Category,
+    source: 'sheet',
+  }
+}
+
+function apiToDash(m: ApiMatch): DashboardMatch {
+  return {
+    id: m.id,
+    tournament: m.league,
+    team1: m.team1,
+    team2: m.team2,
+    team1Logo: m.team1Logo,
+    team2Logo: m.team2Logo,
+    startTime: m.matchTime,
+    endTime: '',
+    category: m.sport === 'cricket' ? 'Cricket' : 'Football',
+    source: 'api',
+  }
+}
+
 export default function Dashboard() {
-  const [sheetMatches, setSheetMatches] = useState<SheetMatch[]>([])
+  const [allMatches, setAllMatches] = useState<DashboardMatch[]>([])
   const [sheetStreams, setSheetStreams] = useState<SheetStream[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -23,11 +68,22 @@ export default function Dashboard() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [matches, streams] = await Promise.all([
-        api.getSheetMatches(),
-        api.getSheetStreams(),
+      const [sheetMatches, apiMatches, streams] = await Promise.all([
+        api.getSheetMatches().catch(() => [] as SheetMatch[]),
+        api.getAllApiMatches().catch(() => [] as ApiMatch[]),
+        api.getSheetStreams().catch(() => [] as SheetStream[]),
       ])
-      setSheetMatches(matches)
+
+      const sheetIds = new Set(sheetMatches.map(m => m.Match_ID).filter(Boolean))
+      const sheetDisplays = sheetMatches.map(sheetToDash)
+      const apiDisplays = apiMatches
+        .filter(m => !sheetIds.has(m.id))
+        .map(apiToDash)
+
+      const merged = [...sheetDisplays, ...apiDisplays].sort((a, b) =>
+        new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+      )
+      setAllMatches(merged)
       setSheetStreams(streams)
     } catch {
       // Will show empty state
@@ -36,17 +92,17 @@ export default function Dashboard() {
     }
   }
 
-  const getMatchStatus = (m: SheetMatch): 'upcoming' | 'live' | 'finished' => {
+  const getMatchStatus = (m: DashboardMatch): 'upcoming' | 'live' | 'finished' => {
     const now = new Date()
-    const start = new Date(m.Start_Time)
-    const end = m.End_Time ? new Date(m.End_Time) : new Date(start.getTime() + 4 * 60 * 60 * 1000)
+    const start = new Date(m.startTime)
+    const end = m.endTime ? new Date(m.endTime) : new Date(start.getTime() + 4 * 60 * 60 * 1000)
     if (now < start) return 'upcoming'
     if (now >= start && now <= end) return 'live'
     return 'finished'
   }
 
-  const upcoming = sheetMatches.filter(m => getMatchStatus(m) === 'upcoming')
-  const live = sheetMatches.filter(m => getMatchStatus(m) === 'live')
+  const upcoming = allMatches.filter(m => getMatchStatus(m) === 'upcoming')
+  const live = allMatches.filter(m => getMatchStatus(m) === 'live')
 
   const getTimeUntil = (dateStr: string): string => {
     const diff = new Date(dateStr).getTime() - Date.now()
@@ -81,7 +137,7 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Calendar} label="Total Matches" value={sheetMatches.length} color="text-blue-400" bg="bg-blue-500/10" />
+        <StatCard icon={Calendar} label="Total Matches" value={allMatches.length} color="text-blue-400" bg="bg-blue-500/10" />
         <StatCard icon={Bell} label="Upcoming" value={upcoming.length} color="text-purple-400" bg="bg-purple-500/10" />
         <StatCard icon={Play} label="Live Now" value={live.length} color="text-red-400" bg="bg-red-500/10" />
         <StatCard icon={FileSpreadsheet} label="Streams" value={sheetStreams.length} color="text-green-400" bg="bg-green-500/10" />
@@ -109,7 +165,7 @@ export default function Dashboard() {
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {live.map((match) => (
-              <SheetMatchCard key={match.Match_ID} match={match} status="live" formatDate={formatDate} getTimeUntil={getTimeUntil} />
+              <DashMatchCard key={match.id} match={match} status="live" formatDate={formatDate} getTimeUntil={getTimeUntil} />
             ))}
           </div>
         </div>
@@ -133,12 +189,12 @@ export default function Dashboard() {
           <div className="card text-center py-8 text-dark-400">
             <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No upcoming matches</p>
-            <p className="text-xs mt-1">Add matches to your Google Sheet</p>
+            <p className="text-xs mt-1">Matches from sports APIs and Google Sheet will appear here</p>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {upcoming.slice(0, 6).map((match) => (
-              <SheetMatchCard key={match.Match_ID} match={match} status="upcoming" formatDate={formatDate} getTimeUntil={getTimeUntil} />
+              <DashMatchCard key={match.id} match={match} status="upcoming" formatDate={formatDate} getTimeUntil={getTimeUntil} />
             ))}
           </div>
         )}
@@ -163,32 +219,43 @@ function StatCard({ icon: Icon, label, value, color, bg }: {
   )
 }
 
-function SheetMatchCard({ match, status, formatDate, getTimeUntil }: {
-  match: SheetMatch; status: string;
+function DashMatchCard({ match, status, formatDate, getTimeUntil }: {
+  match: DashboardMatch; status: string;
   formatDate: (d: string) => string; getTimeUntil: (d: string) => string
 }) {
   return (
     <div className="card-hover block">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-dark-400">
-          {match.Category === 'Cricket' ? '🏏' : '⚽'} {match.Tournament}
+          {match.category === 'Cricket' ? '\u{1F3CF}' : '\u26BD'} {match.tournament}
         </span>
-        <span className={`badge ${status === 'live' ? 'badge-live' : 'badge-upcoming'}`}>
-          {status === 'live' && <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />}
-          {status}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {match.source === 'sheet' ? (
+            <span className="badge bg-green-500/20 text-green-400 gap-1 text-[10px]">
+              <FileSpreadsheet className="w-2.5 h-2.5" /> Sheet
+            </span>
+          ) : (
+            <span className="badge bg-blue-500/20 text-blue-400 gap-1 text-[10px]">
+              <Globe className="w-2.5 h-2.5" /> API
+            </span>
+          )}
+          <span className={`badge ${status === 'live' ? 'badge-live' : 'badge-upcoming'}`}>
+            {status === 'live' && <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />}
+            {status}
+          </span>
+        </div>
       </div>
       <div className="flex items-center gap-3 mb-2">
-        {match.Team1_Logo && <img src={match.Team1_Logo} alt="" className="w-5 h-5 rounded-full object-cover" />}
+        {match.team1Logo && <img src={match.team1Logo} alt="" className="w-5 h-5 rounded-full object-cover" />}
         <div className="flex-1 text-center">
-          <p className="font-semibold text-sm truncate">{match.Team1_Name} vs {match.Team2_Name}</p>
+          <p className="font-semibold text-sm truncate">{match.team1} vs {match.team2}</p>
         </div>
-        {match.Team2_Logo && <img src={match.Team2_Logo} alt="" className="w-5 h-5 rounded-full object-cover" />}
+        {match.team2Logo && <img src={match.team2Logo} alt="" className="w-5 h-5 rounded-full object-cover" />}
       </div>
       <div className="flex items-center justify-between text-xs text-dark-400">
-        <span>{formatDate(match.Start_Time)}</span>
+        <span>{formatDate(match.startTime)}</span>
         {status === 'upcoming' && (
-          <span className="text-primary-400">{getTimeUntil(match.Start_Time)}</span>
+          <span className="text-primary-400">{getTimeUntil(match.startTime)}</span>
         )}
       </div>
     </div>
