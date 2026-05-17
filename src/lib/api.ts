@@ -299,6 +299,15 @@ const FOOTBALL_LEAGUES: { id: string; name: string }[] = [
   { id: '4334', name: 'French Ligue 1' },
   { id: '4480', name: 'UEFA Champions League' },
   { id: '4481', name: 'UEFA Europa League' },
+  { id: '4337', name: 'Dutch Eredivisie' },
+  { id: '4344', name: 'Portuguese Liga' },
+  { id: '4346', name: 'American Major League Soccer' },
+  { id: '4351', name: 'Brazilian Serie A' },
+  { id: '4396', name: 'English League One' },
+  { id: '4482', name: 'UEFA Europa Conference League' },
+  { id: '4340', name: 'Danish Superliga' },
+  { id: '4356', name: 'Australian A-League' },
+  { id: '4359', name: 'Chinese Super League' },
 ]
 
 async function fetchLeagueNextEvents(leagueId: string): Promise<ApiMatch[]> {
@@ -336,6 +345,13 @@ const CRICKET_LEAGUES: { id: string; name: string }[] = [
   { id: '5176', name: 'Caribbean Premier League' },
   { id: '4463', name: 'English T20 Blast' },
   { id: '5533', name: 'Nepal Premier League' },
+  { id: '4486', name: 'ICC Cricket World Cup' },
+  { id: '4952', name: 'ICC World Twenty20' },
+  { id: '4953', name: 'The Ashes' },
+  { id: '5070', name: 'Lanka Premier League' },
+  { id: '5604', name: 'SA20' },
+  { id: '5605', name: 'International League T20' },
+  { id: '5603', name: 'Major League Cricket' },
 ]
 
 export async function getFootballMatches(): Promise<ApiMatch[]> {
@@ -416,13 +432,15 @@ function formatDateForSheet(isoStr: string): string {
   try {
     const d = new Date(isoStr)
     if (isNaN(d.getTime())) return isoStr
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    const hours = String(d.getHours()).padStart(2, '0')
-    const mins = String(d.getMinutes()).padStart(2, '0')
-    const secs = String(d.getSeconds()).padStart(2, '0')
-    return `'${year}-${month}-${day}T${hours}:${mins}:${secs}`
+    const NPT_OFFSET = 5 * 60 + 45
+    const npt = new Date(d.getTime() + NPT_OFFSET * 60 * 1000)
+    const year = npt.getUTCFullYear()
+    const month = String(npt.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(npt.getUTCDate()).padStart(2, '0')
+    const hours = String(npt.getUTCHours()).padStart(2, '0')
+    const mins = String(npt.getUTCMinutes()).padStart(2, '0')
+    const secs = String(npt.getUTCSeconds()).padStart(2, '0')
+    return `'${year}-${month}-${day}T${hours}:${mins}:${secs}+05:45`
   } catch {
     return isoStr
   }
