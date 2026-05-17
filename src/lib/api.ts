@@ -269,9 +269,121 @@ export async function sendTestTelegram(message: string): Promise<{ success: bool
 }
 
 // ============================================
-// GOOGLE SHEET (direct opensheet reads + SheetDB writes)
+// SPORTS API (TheSportsDB — direct frontend calls)
 // ============================================
 import type { SheetMatch, SheetStream } from '@/types'
+
+export interface ApiMatch {
+  id: string
+  sport: 'football' | 'cricket'
+  league: string
+  leagueBadge: string
+  team1: string
+  team2: string
+  team1Logo: string
+  team2Logo: string
+  matchTime: string
+  venue: string
+  status: 'upcoming' | 'live' | 'finished'
+  poster: string
+  source: 'api'
+}
+
+const THESPORTSDB_BASE = 'https://www.thesportsdb.com/api/v1/json/3'
+
+const FOOTBALL_LEAGUES: { id: string; name: string }[] = [
+  { id: '4328', name: 'English Premier League' },
+  { id: '4335', name: 'Spanish La Liga' },
+  { id: '4332', name: 'Italian Serie A' },
+  { id: '4331', name: 'German Bundesliga' },
+  { id: '4334', name: 'French Ligue 1' },
+  { id: '4480', name: 'UEFA Champions League' },
+  { id: '4481', name: 'UEFA Europa League' },
+]
+
+async function fetchLeagueNextEvents(leagueId: string): Promise<ApiMatch[]> {
+  try {
+    const res = await fetch(`${THESPORTSDB_BASE}/eventsnextleague.php?id=${leagueId}`)
+    if (!res.ok) return []
+    const data = await res.json()
+    if (!data.events) return []
+    return data.events.map((e: Record<string, string | null>) => ({
+      id: `tsdb-${e.idEvent}`,
+      sport: 'football' as const,
+      league: e.strLeague || '',
+      leagueBadge: e.strLeagueBadge || '',
+      team1: e.strHomeTeam || 'TBD',
+      team2: e.strAwayTeam || 'TBD',
+      team1Logo: e.strHomeTeamBadge || '',
+      team2Logo: e.strAwayTeamBadge || '',
+      matchTime: e.strTimestamp || '',
+      venue: e.strVenue || '',
+      status: e.strStatus === 'Match Finished' ? 'finished' as const
+        : e.strStatus === 'Not Started' ? 'upcoming' as const : 'live' as const,
+      poster: e.strThumb || e.strPoster || '',
+      source: 'api' as const,
+    }))
+  } catch {
+    return []
+  }
+}
+
+const CRICKET_LEAGUES: { id: string; name: string }[] = [
+  { id: '4460', name: 'Indian Premier League' },
+  { id: '5067', name: 'Pakistan Super League' },
+  { id: '4461', name: 'Australian Big Bash League' },
+  { id: '5529', name: 'Bangladesh Premier League' },
+  { id: '5176', name: 'Caribbean Premier League' },
+  { id: '4463', name: 'English T20 Blast' },
+  { id: '5533', name: 'Nepal Premier League' },
+]
+
+export async function getFootballMatches(): Promise<ApiMatch[]> {
+  const results = await Promise.all(
+    FOOTBALL_LEAGUES.map(l => fetchLeagueNextEvents(l.id))
+  )
+  return results.flat().sort((a, b) =>
+    new Date(a.matchTime).getTime() - new Date(b.matchTime).getTime()
+  )
+}
+
+export async function getCricketMatches(): Promise<ApiMatch[]> {
+  const results = await Promise.all(
+    CRICKET_LEAGUES.map(l => fetchLeagueNextEvents(l.id))
+  )
+  return results.flat().map(m => ({ ...m, sport: 'cricket' as const })).sort((a, b) =>
+    new Date(a.matchTime).getTime() - new Date(b.matchTime).getTime()
+  )
+}
+
+export async function getAllApiMatches(): Promise<ApiMatch[]> {
+  const [football, cricket] = await Promise.all([
+    getFootballMatches(),
+    getCricketMatches(),
+  ])
+  return [...football, ...cricket].sort((a, b) =>
+    new Date(a.matchTime).getTime() - new Date(b.matchTime).getTime()
+  )
+}
+
+export function apiMatchToSheetFormat(m: ApiMatch): SheetMatch {
+  return {
+    Tournament: m.league,
+    Team1_Name: m.team1,
+    Team1_Logo: m.team1Logo,
+    Team2_Name: m.team2,
+    Team2_Logo: m.team2Logo,
+    Start_Time: m.matchTime,
+    End_Time: '',
+    BG_Image: m.poster,
+    Category: m.sport === 'cricket' ? 'Cricket' : 'Football',
+    Match_ID: m.id,
+  }
+}
+
+// ============================================
+// GOOGLE SHEET (direct opensheet reads + SheetDB writes)
+// ============================================
 
 const GOOGLE_SHEETS_ID = import.meta.env.VITE_GOOGLE_SHEETS_ID || '1RthMctHFdKX7yEznC25Va8weBKwjchXCvXS4f4QCl6U'
 const OPENSHEET_BASE = 'https://opensheet.elk.sh'
