@@ -411,6 +411,23 @@ export async function getAllApiMatches(): Promise<ApiMatch[]> {
     )
 }
 
+function formatDateForSheet(isoStr: string): string {
+  if (!isoStr) return ''
+  try {
+    const d = new Date(isoStr)
+    if (isNaN(d.getTime())) return isoStr
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hours = String(d.getHours()).padStart(2, '0')
+    const mins = String(d.getMinutes()).padStart(2, '0')
+    const secs = String(d.getSeconds()).padStart(2, '0')
+    return `'${year}-${month}-${day}T${hours}:${mins}:${secs}`
+  } catch {
+    return isoStr
+  }
+}
+
 export function apiMatchToSheetFormat(m: ApiMatch): SheetMatch {
   return {
     Tournament: m.league,
@@ -418,7 +435,7 @@ export function apiMatchToSheetFormat(m: ApiMatch): SheetMatch {
     Team1_Logo: m.team1Logo,
     Team2_Name: m.team2,
     Team2_Logo: m.team2Logo,
-    Start_Time: m.matchTime,
+    Start_Time: formatDateForSheet(m.matchTime),
     End_Time: '',
     BG_Image: m.poster,
     Category: m.sport === 'cricket' ? 'Cricket' : 'Football',
